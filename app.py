@@ -9,6 +9,29 @@ from PIL import Image
 import config
 
 app = Flask(__name__)
+
+
+def detect_bg_color(img):
+    """Sample edge pixels to estimate the image's background color."""
+    img = img.convert("RGB")
+    pixels = []
+    w, h = img.size
+    # Sample top/bottom rows and left/right columns
+    for x in range(0, w, max(1, w // 40)):
+        pixels.append(img.getpixel((x, 0)))
+        pixels.append(img.getpixel((x, h - 1)))
+    for y in range(0, h, max(1, h // 40)):
+        pixels.append(img.getpixel((0, y)))
+        pixels.append(img.getpixel((w - 1, y)))
+    r = sum(p[0] for p in pixels) // len(pixels)
+    g = sum(p[1] for p in pixels) // len(pixels)
+    b = sum(p[2] for p in pixels) // len(pixels)
+    return (r, g, b)
+
+
+def blend_color(white, detected, factor):
+    """Blend white toward detected color by factor (0.0=white, 1.0=detected)."""
+    return tuple(int(w + (d - w) * factor) for w, d in zip(white, detected))
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB max upload
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".gif"}
@@ -87,7 +110,11 @@ def process():
         fmt = "jpg"
 
     ext = "webp" if fmt == "webp" else "jpg"
-    bg_color = config.BACKGROUND_COLOR
+    try:
+        bg_blend = float(request.form.get("bg_blend", "0")) / 100.0
+    except ValueError:
+        bg_blend = 0.0
+    bg_blend = max(0.0, min(1.0, bg_blend))
 
     # Build zip in memory
     zip_buf = io.BytesIO()
@@ -113,6 +140,10 @@ def process():
             )
             zf.writestr(f"originals/{orig_name}.{ext}", orig_buf.read())
 
+            # Detect background and blend
+            detected = detect_bg_color(img)
+            bg_color = blend_color((255, 255, 255), detected, bg_blend)
+
             # Thumbnail
             thumb_buf = create_thumbnail(img, thumb_w, thumb_h, thumb_quality, fmt, bg_color)
             zf.writestr(f"thumbnails/{thumb_name}.{ext}", thumb_buf.read())
@@ -124,6 +155,16 @@ def process():
         as_attachment=True,
         download_name="picprep_output.zip",
     )
+
+
+@app.route("/detect-bg", methods=["POST"])
+def detect_bg():
+    f = request.files.get("image")
+    if not f or not f.filename or not allowed_file(f.filename):
+        return {"error": "Invalid file"}, 400
+    img = Image.open(f.stream)
+    r, g, b = detect_bg_color(img)
+    return {"r": r, "g": g, "b": b}
 
 
 if __name__ == "__main__":

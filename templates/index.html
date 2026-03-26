@@ -42,6 +42,11 @@
   button:disabled { background: #b0b0b0; cursor: not-allowed; }
   .spinner { display: none; text-align: center; margin-top: .8rem; color: #777;
              font-size: .85rem; }
+  .bg-match-row { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+  .bg-match-row input[type=range] { flex: 1; margin: 0; }
+  .bg-match-row .preview-swatch { width: 32px; height: 32px; border-radius: 5px;
+      border: 1px solid #d0d0d0; flex-shrink: 0; }
+  .bg-match-row .val-label { font-size: .78rem; color: #666; min-width: 30px; text-align: right; }
 </style>
 </head>
 <body>
@@ -89,6 +94,12 @@
         <label for="thumb_height">Height (px)</label>
         <input type="number" name="thumb_height" id="thumb_height" value="{{ config.THUMBNAIL_HEIGHT }}" min="50" max="2000">
       </div>
+    </div>
+    <label for="bg_blend">Background Match</label>
+    <div class="bg-match-row">
+      <div class="preview-swatch" id="bgSwatch" style="background:#fff"></div>
+      <input type="range" name="bg_blend" id="bg_blend" min="0" max="100" value="5">
+      <span class="val-label" id="bgVal">5%</span>
     </div>
 
     <div class="section-label">Original Image</div>
@@ -158,6 +169,35 @@ function renderFiles() {
     .map((f, i) => '<div><span>' + f.name + ' (' + (f.size / 1024).toFixed(0) + ' KB)</span>'
       + '<button type="button" class="remove-btn" onclick="removeFile(' + i + ')">&#10005;</button></div>')
     .join('');
+  detectBgColor();
+}
+
+// Background detection + swatch preview
+let detectedBg = null;
+const bgSlider = document.getElementById('bg_blend');
+const bgSwatch = document.getElementById('bgSwatch');
+const bgVal = document.getElementById('bgVal');
+
+function updateSwatch() {
+  const pct = bgSlider.value / 100;
+  bgVal.textContent = bgSlider.value + '%';
+  if (!detectedBg) { bgSwatch.style.background = '#fff'; return; }
+  const r = Math.round(255 + (detectedBg.r - 255) * pct);
+  const g = Math.round(255 + (detectedBg.g - 255) * pct);
+  const b = Math.round(255 + (detectedBg.b - 255) * pct);
+  bgSwatch.style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+bgSlider.addEventListener('input', updateSwatch);
+
+function detectBgColor() {
+  if (!selectedFiles.length) { detectedBg = null; updateSwatch(); return; }
+  const fd = new FormData();
+  fd.append('image', selectedFiles[0]);
+  fetch('/detect-bg', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(c => { detectedBg = c; updateSwatch(); })
+    .catch(() => { detectedBg = null; updateSwatch(); });
 }
 
 form.addEventListener('submit', function(e) {

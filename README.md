@@ -7,6 +7,7 @@ A minimal local web app for batch-processing gallery images before uploading the
 - Batch process multiple images at once
 - Generate web-optimized originals (resized + compressed)
 - Generate centered thumbnails on a solid background (no cropping, no distortion)
+- Background Match slider — blends thumbnail canvas from pure white toward the detected image background color
 - Output as JPEG or WebP
 - Independent prefix and quality settings for originals vs thumbnails
 - All processing done in memory — no temp files written to disk
@@ -52,13 +53,16 @@ flowchart TD
     A -->|Open app| C[Flask Route: GET /]
     C -->|Render| D[templates/index.html]
 
+    A -->|Upload first image| BG[Flask Route: POST /detect-bg]
+    BG -->|Return RGB color| A
+
     B --> E{For each image}
 
     E --> F[Open with Pillow]
 
     F --> G[Optimize Original\n• Convert to RGB\n• Resize to max width/height\n• Compress JPEG/WebP\n• Progressive encoding]
 
-    F --> H[Create Thumbnail\n• Scale to fit bounds\n• Center on white canvas\n• Compress JPEG/WebP]
+    F --> H[Create Thumbnail\n• Scale to fit bounds\n• Detect edge bg color\n• Blend canvas white→detected\n• Center on canvas\n• Compress JPEG/WebP]
 
     G --> I[originals/PREFIX_N.ext]
     H --> J[thumbnails/PREFIX_N.ext]
@@ -74,11 +78,11 @@ flowchart TD
 | Step | Detail |
 |------|--------|
 | **1. Select images** | User drags & drops or picks files. A JS-managed list allows individual removal. |
-| **2. Configure** | Set prefix (original & thumbnail separately), start number, thumbnail dimensions, output quality, max original width, and format (JPEG or WebP). |
+| **2. Configure** | Set prefix (original & thumbnail separately), start number, thumbnail dimensions, output quality, max original width, format (JPEG or WebP), and background match level. |
 | **3. Submit** | Browser sends a `multipart/form-data` POST via `fetch`. No page navigation. |
 | **4. Process** | Flask reads each image with Pillow in memory — no temp files written to disk. |
 | **5. Originals** | Resized to fit within `Max Width × Max Height`, compressed with chosen quality and format. Produces progressive JPEG or WebP. |
-| **6. Thumbnails** | Scaled to fit inside the thumbnail box, centered on a white background canvas. No cropping, no distortion. |
+| **6. Thumbnails** | Scaled to fit inside the thumbnail box, centered on a background canvas. The Background Match slider (0–100%) blends color from pure white toward the detected image edge color, giving a subtle tint that matches the original. Default: 5%. No cropping, no distortion. |
 | **7. Naming** | Files named `{prefix}{N}.ext`. Prefix can be empty (number only). Originals and thumbnails have independent prefixes. Numbering starts from user-defined value. |
 | **8. Download** | All processed files returned as a single ZIP with `originals/` and `thumbnails/` folders. |
 
@@ -95,7 +99,8 @@ flowchart TD
 | `ORIGINAL_PREFIX` | `""` | Prefix for original filenames |
 | `THUMBNAIL_PREFIX` | `"work-"` | Prefix for thumbnail filenames |
 | `OUTPUT_FORMAT` | `jpg` | Output format: `jpg` or `webp` |
-| `BACKGROUND_COLOR` | `(255,255,255)` | Thumbnail background fill (white) |
+| `BACKGROUND_COLOR` | `(255,255,255)` | Base thumbnail background fill (white) |
+| `BG_BLEND_DEFAULT` | `5` | Default Background Match slider value (0–100%) |
 
 ## Dependencies
 
