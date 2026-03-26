@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PicPrep</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #f0f2f5; color: #333; padding: 2rem; }
+  .container { max-width: 580px; margin: 0 auto; background: #fff;
+               border-radius: 10px; padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+  .logo { text-align: center; margin-bottom: 1.5rem; }
+  .logo h1 { font-size: 1.5rem; color: #2c3e50; }
+  .logo p { font-size: .8rem; color: #888; margin-top: .2rem; }
+  label { display: block; font-weight: 600; margin-bottom: .3rem; font-size: .82rem; color: #444; }
+  input, select { width: 100%; padding: .5rem .6rem; border: 1px solid #d0d0d0;
+                  border-radius: 5px; font-size: .88rem; margin-bottom: 1rem;
+                  transition: border-color .2s; }
+  input:focus, select:focus { outline: none; border-color: #5b8def; }
+  .row { display: flex; gap: 1rem; }
+  .row > div { flex: 1; }
+  .drop-zone { border: 2px dashed #bbb; border-radius: 8px; padding: 2rem;
+               text-align: center; color: #999; cursor: pointer; margin-bottom: 1rem;
+               transition: all .2s; }
+  .drop-zone:hover { border-color: #5b8def; color: #5b8def; }
+  .drop-zone.over { border-color: #5b8def; background: #f0f5ff; }
+  .drop-zone input { display: none; }
+  .drop-zone .icon { font-size: 2rem; margin-bottom: .4rem; }
+  .file-list { font-size: .78rem; color: #666; margin-bottom: 1rem;
+               max-height: 140px; overflow-y: auto; }
+  .file-list div { padding: .2rem 0; border-bottom: 1px solid #f0f0f0;
+                   display: flex; justify-content: space-between; align-items: center; }
+  .file-list .remove-btn { background: none; border: none; color: #d44; cursor: pointer;
+                           font-size: .85rem; padding: 0 .3rem; width: auto; margin: 0; }
+  .section-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .5px;
+                   color: #999; margin: .8rem 0 .6rem; }
+  button { width: 100%; padding: .75rem; background: #5b8def; color: #fff;
+           border: none; border-radius: 6px; font-size: .95rem; cursor: pointer;
+           font-weight: 600; transition: background .2s; }
+  button:hover { background: #4a7de0; }
+  button:disabled { background: #b0b0b0; cursor: not-allowed; }
+  .spinner { display: none; text-align: center; margin-top: .8rem; color: #777;
+             font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">
+    <h1>PicPrep</h1>
+    <p>Batch optimize &amp; thumbnail generator</p>
+  </div>
+
+  <form id="form" action="/process" method="post" enctype="multipart/form-data">
+
+    <div class="drop-zone" id="dropZone">
+      <div class="icon">&#128247;</div>
+      <p>Drop images here or click to select</p>
+      <input type="file" name="images" id="images" multiple accept="image/*">
+    </div>
+    <div class="file-list" id="fileList"></div>
+
+    <div class="section-label">Naming</div>
+    <div class="row">
+      <div>
+        <label for="orig_prefix">Image Prefix</label>
+        <input type="text" name="orig_prefix" id="orig_prefix" value="{{ config.ORIGINAL_PREFIX }}" maxlength="50" placeholder="empty = number only">
+      </div>
+      <div>
+        <label for="thumb_prefix">Thumb Prefix</label>
+        <input type="text" name="thumb_prefix" id="thumb_prefix" value="{{ config.THUMBNAIL_PREFIX }}" maxlength="50" placeholder="empty = number only">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="start_number">Start Number</label>
+        <input type="number" name="start_number" id="start_number" value="1" min="0">
+      </div>
+      <div></div>
+    </div>
+
+    <div class="section-label">Thumbnail</div>
+    <div class="row">
+      <div>
+        <label for="thumb_width">Width (px)</label>
+        <input type="number" name="thumb_width" id="thumb_width" value="{{ config.THUMBNAIL_WIDTH }}" min="50" max="2000">
+      </div>
+      <div>
+        <label for="thumb_height">Height (px)</label>
+        <input type="number" name="thumb_height" id="thumb_height" value="{{ config.THUMBNAIL_HEIGHT }}" min="50" max="2000">
+      </div>
+    </div>
+
+    <div class="section-label">Original Image</div>
+    <div class="row">
+      <div>
+        <label for="orig_quality">Quality (1-95)</label>
+        <input type="number" name="orig_quality" id="orig_quality" value="{{ config.ORIGINAL_QUALITY }}" min="1" max="95">
+      </div>
+      <div>
+        <label for="max_width">Max Width (px)</label>
+        <input type="number" name="max_width" id="max_width" value="{{ config.MAX_ORIGINAL_WIDTH }}" min="100" max="5000">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="thumb_quality">Thumb Quality (1-95)</label>
+        <input type="number" name="thumb_quality" id="thumb_quality" value="{{ config.THUMBNAIL_QUALITY }}" min="1" max="95">
+      </div>
+      <div>
+        <label for="format">Format</label>
+        <select name="format" id="format">
+          <option value="jpg" {{ 'selected' if config.OUTPUT_FORMAT == 'jpg' }}>JPEG</option>
+          <option value="webp" {{ 'selected' if config.OUTPUT_FORMAT == 'webp' }}>WebP</option>
+        </select>
+      </div>
+    </div>
+
+    <button type="submit" id="btn">Process &amp; Download ZIP</button>
+    <div class="spinner" id="spinner">&#9881; Processing images&hellip;</div>
+  </form>
+</div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const input = document.getElementById('images');
+const fileList = document.getElementById('fileList');
+const form = document.getElementById('form');
+const btn = document.getElementById('btn');
+const spinner = document.getElementById('spinner');
+
+// Maintain a mutable file list (native input.files is read-only)
+let selectedFiles = [];
+
+dropZone.addEventListener('click', () => input.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  addFiles(e.dataTransfer.files);
+});
+input.addEventListener('change', () => { addFiles(input.files); input.value = ''; });
+
+function addFiles(newFiles) {
+  for (const f of newFiles) selectedFiles.push(f);
+  renderFiles();
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFiles();
+}
+
+function renderFiles() {
+  if (!selectedFiles.length) { fileList.innerHTML = ''; return; }
+  fileList.innerHTML = selectedFiles
+    .map((f, i) => '<div><span>' + f.name + ' (' + (f.size / 1024).toFixed(0) + ' KB)</span>'
+      + '<button type="button" class="remove-btn" onclick="removeFile(' + i + ')">&#10005;</button></div>')
+    .join('');
+}
+
+form.addEventListener('submit', function(e) {
+  e.preventDefault();
+  if (!selectedFiles.length) { alert('Select images first'); return; }
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  const fd = new FormData(form);
+  // Remove the empty native file input and append our managed list
+  fd.delete('images');
+  selectedFiles.forEach(f => fd.append('images', f));
+  fetch('/process', { method: 'POST', body: fd })
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error(t); });
+      return r.blob();
+    })
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'picprep_output.zip';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(err => alert('Error: ' + err.message))
+    .finally(() => { btn.disabled = false; spinner.style.display = 'none'; });
+});
+</script>
+</body>
+</html>
